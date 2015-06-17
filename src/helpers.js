@@ -89,6 +89,41 @@ var isString = function (val) {
   return typeof val === 'string';
 };
 
+/**
+@method parseURI
+@param {string} str
+@return {object}
+@private
+By Steven Levithan, MIT License, http://blog.stevenlevithan.com/archives/parseuri
+**/
+var parseURI = function (str) {
+  var	o   = parseURI.options,
+  m   = o.parser[o.strictMode ? "strict" : "loose"].exec(str),
+  uri = {},
+  i   = 14;
+
+  while (i--) uri[o.key[i]] = m[i] || "";
+
+  uri[o.q.name] = {};
+  uri[o.key[12]].replace(o.q.parser, function ($0, $1, $2) {
+    if ($1) uri[o.q.name][$1] = $2;
+  });
+
+  return uri;
+};
+parseURI.options = {
+  strictMode: false,
+  key: ["source","protocol","authority","userInfo","username","password","host","port","relative","pathname","directory","file","search","anchor"],
+  q:   {
+    name:   "queryKey",
+    parser: /(?:^|&)([^&=]*)=?([^&]*)/g
+  },
+  parser: {
+    strict: /^(?:([^:\/?#]+):)?(?:\/\/((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?))?((((?:[^?#\/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/,
+    loose:  /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/
+  }
+};
+
 module.exports = {
   bind: bind,
   each: each,
@@ -96,5 +131,6 @@ module.exports = {
   addEvent: addEvent,
   isArray: isArray,
   isPlainObject: isPlainObject,
-  isString: isString
+  isString: isString,
+  parseURI: parseURI
 };

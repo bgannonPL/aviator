@@ -90,6 +90,41 @@ var isString = function (val) {
   return typeof val === 'string';
 };
 
+/**
+@method parseURI
+@param {string} str
+@return {object}
+@private
+By Steven Levithan, MIT License, http://blog.stevenlevithan.com/archives/parseuri
+**/
+var parseURI = function (str) {
+  var	o   = parseURI.options,
+  m   = o.parser[o.strictMode ? "strict" : "loose"].exec(str),
+  uri = {},
+  i   = 14;
+
+  while (i--) uri[o.key[i]] = m[i] || "";
+
+  uri[o.q.name] = {};
+  uri[o.key[12]].replace(o.q.parser, function ($0, $1, $2) {
+    if ($1) uri[o.q.name][$1] = $2;
+  });
+
+  return uri;
+};
+parseURI.options = {
+  strictMode: false,
+  key: ["source","protocol","authority","userInfo","username","password","host","port","relative","pathname","directory","file","search","anchor"],
+  q:   {
+    name:   "queryKey",
+    parser: /(?:^|&)([^&=]*)=?([^&]*)/g
+  },
+  parser: {
+    strict: /^(?:([^:\/?#]+):)?(?:\/\/((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?))?((((?:[^?#\/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/,
+    loose:  /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/
+  }
+};
+
 module.exports = {
   bind: bind,
   each: each,
@@ -97,7 +132,8 @@ module.exports = {
   addEvent: addEvent,
   isArray: isArray,
   isPlainObject: isPlainObject,
-  isString: isString
+  isString: isString,
+  parseURI: parseURI
 };
 
 },{}],2:[function(require,module,exports){
@@ -117,7 +153,7 @@ var Aviator = {
   @type {Boolean}
   @default true if the browser supports pushState
   **/
-  pushStateEnabled: ('pushState' in window.history),
+  pushStateEnabled: ( typeof window !== 'undefined' && typeof window.history !== 'undefined' ) ? 'pushState' in window.history : false,
 
   /**
   @property linkSelector
@@ -156,14 +192,23 @@ var Aviator = {
 
   @method dispatch
   **/
-  dispatch: function () {
-    var navigator = this._navigator;
+  dispatch: function (config) {
+    var navigator = this._navigator, navigatorConfig;
 
-    navigator.setup({
+    config = config || {};
+
+    navigatorConfig = {
       pushStateEnabled: this.pushStateEnabled,
       linkSelector:     this.linkSelector,
       root:             this.root
-    });
+    };
+
+    // for now, just expose config for browser/server
+    if (typeof config.inBrowser !== 'undefined' && !config.inBrowser) {
+    	navigatorConfig._inBrowser = false;
+    }
+
+    navigator.setup(navigatorConfig);
 
     navigator.dispatch();
   },
@@ -242,7 +287,7 @@ var Aviator = {
 
 };
 
-if (window) {
+if (typeof window !== 'undefined') {
   window.Aviator = Aviator;
 }
 
@@ -256,7 +301,8 @@ var helpers = require('./helpers'),
 // helpers
 var each      = helpers.each,
     addEvent  = helpers.addEvent,
-    isArray   = helpers.isArray;
+    isArray   = helpers.isArray,
+    parseURI = helpers.parseURI;
 
 /**
 @class Navigator
@@ -268,6 +314,23 @@ var Navigator = function () {
   this._exits   = [];
   this._silent  = false;
   this._dispatchingStarted = false;
+  this._inBrowser = true;
+  this._location = {
+  	href: '',
+  	protocol: '',
+  	host: '',
+  	hostname: '',
+  	port: '',
+  	pathname: '',
+  	search: '',
+  	hash: '',
+  	username: '',
+  	password: '',
+  	origin: '',
+  	toString: function toString() {
+  	  return this.href;
+  	}
+  };
 };
 
 Navigator.prototype = {
@@ -285,7 +348,9 @@ Navigator.prototype = {
       }
     }
 
-    this._attachEvents();
+    if (this._inBrowser) {
+      this._attachEvents();
+    }
   },
 
   /**
@@ -294,6 +359,22 @@ Navigator.prototype = {
   **/
   setRoutes: function (routes) {
     this._routes = routes;
+  },
+
+  /**
+  @method _setInternalLocation
+  @param {String|Object} location string or object representation of URL
+  **/
+  _setInternalLocation: function(location) {
+  	var locPart;
+  	if (typeof location === 'string') {
+  	  location = parseURI(location);
+  	}
+  	for (locPart in this._location) {
+  		if (this._location.hasOwnProperty(locPart)) {
+  			this._location[locPart] = location[locPart] || '';
+  		}
+  	}
   },
 
   /**
@@ -335,11 +416,15 @@ Navigator.prototype = {
   @return {String}
   **/
   getCurrentPathname: function () {
-    if (this.pushStateEnabled) {
-      return this._removeURIRoot(location.pathname);
-    }
-    else {
-      return location.hash.replace('#', '').split('?')[0];
+  	if (!this._inBrowser) {
+  	  return this._removeURIRoot(this._location.pathname);
+  	} else {
+      if (this.pushStateEnabled) {
+        return this._removeURIRoot(location.pathname);
+      }
+      else {
+        return location.hash.replace('#', '').split('?')[0];
+      }
     }
   },
 
@@ -348,11 +433,15 @@ Navigator.prototype = {
   @return {String}
   **/
   getCurrentURI: function () {
-    if (this.pushStateEnabled) {
-      return this._removeURIRoot(location.pathname) + location.search;
-    }
-    else {
-      return location.hash.replace('#', '');
+  	if (!this._inBrowser) {
+  	  return this._removeURIRoot(this._location.pathname) + location.search;
+  	} else {
+      if (this.pushStateEnabled) {
+        return this._removeURIRoot(location.pathname) + location.search;
+      }
+      else {
+        return location.hash.replace('#', '');
+      }
     }
   },
 
@@ -363,17 +452,21 @@ Navigator.prototype = {
   getQueryString: function () {
     var uri, queryString;
 
-    if (this.pushStateEnabled) {
-      return location.search || null;
-    }
-    else {
-      queryString = this.getCurrentURI().split('?')[1];
-
-      if (queryString) {
-        return '?' + queryString;
+    if (!this._inBrowser) {
+      return this._location.search;
+    } else {
+      if (this.pushStateEnabled) {
+        return location.search || null;
       }
       else {
-        return null;
+        queryString = this.getCurrentURI().split('?')[1];
+
+        if (queryString) {
+          return '?' + queryString;
+        }
+        else {
+          return null;
+        }
       }
     }
   },
@@ -480,24 +573,31 @@ Navigator.prototype = {
       this._silent = true;
     }
 
-    if (this.pushStateEnabled) {
-      link = this._removeURIRoot(link);
+    if (!this._inBrowser) {
+      this._setInternalLocation(link);
+      this.onURIChange();
+    } else {
+      if (this.pushStateEnabled) {
+        link = this._removeURIRoot(link);
 
-      link = this.root + link;
+        link = this.root + link;
 
-      if (options.replace) {
-        history.replaceState('navigate', '', link);
+        if (options.replace) {
+          history.replaceState('navigate', '', link);
+        }
+        else {
+          history.pushState('navigate', '', link);
+        }
+
+        this.onURIChange();
       }
       else {
-        history.pushState('navigate', '', link);
+        if (options.replace) location.replace('#' + link);
+        else location.hash = link;
       }
+    }
 
-      this.onURIChange();
-    }
-    else {
-      if (options.replace) location.replace('#' + link);
-      else location.hash = link;
-    }
+    
   },
 
   /**

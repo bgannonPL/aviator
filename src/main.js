@@ -14,7 +14,7 @@ var Aviator = {
   @type {Boolean}
   @default true if the browser supports pushState
   **/
-  pushStateEnabled: ('pushState' in window.history),
+  pushStateEnabled: ( typeof window !== 'undefined' && typeof window.history !== 'undefined' ) ? 'pushState' in window.history : false,
 
   /**
   @property linkSelector
@@ -53,14 +53,23 @@ var Aviator = {
 
   @method dispatch
   **/
-  dispatch: function () {
-    var navigator = this._navigator;
+  dispatch: function (config) {
+    var navigator = this._navigator, navigatorConfig;
 
-    navigator.setup({
+    config = config || {};
+
+    navigatorConfig = {
       pushStateEnabled: this.pushStateEnabled,
       linkSelector:     this.linkSelector,
       root:             this.root
-    });
+    };
+
+    // for now, just expose config for browser/server
+    if (typeof config.inBrowser !== 'undefined' && !config.inBrowser) {
+    	navigatorConfig._inBrowser = false;
+    }
+
+    navigator.setup(navigatorConfig);
 
     navigator.dispatch();
   },
@@ -139,7 +148,7 @@ var Aviator = {
 
 };
 
-if (window) {
+if (typeof window !== 'undefined') {
   window.Aviator = Aviator;
 }
 

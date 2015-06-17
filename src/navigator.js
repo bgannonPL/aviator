@@ -5,7 +5,8 @@ var helpers = require('./helpers'),
 // helpers
 var each      = helpers.each,
     addEvent  = helpers.addEvent,
-    isArray   = helpers.isArray;
+    isArray   = helpers.isArray,
+    parseURI = helpers.parseURI;
 
 /**
 @class Navigator
@@ -17,6 +18,23 @@ var Navigator = function () {
   this._exits   = [];
   this._silent  = false;
   this._dispatchingStarted = false;
+  this._inBrowser = true;
+  this._location = {
+  	href: '',
+  	protocol: '',
+  	host: '',
+  	hostname: '',
+  	port: '',
+  	pathname: '',
+  	search: '',
+  	hash: '',
+  	username: '',
+  	password: '',
+  	origin: '',
+  	toString: function toString() {
+  	  return this.href;
+  	}
+  };
 };
 
 Navigator.prototype = {
@@ -34,7 +52,9 @@ Navigator.prototype = {
       }
     }
 
-    this._attachEvents();
+    if (this._inBrowser) {
+      this._attachEvents();
+    }
   },
 
   /**
@@ -43,6 +63,22 @@ Navigator.prototype = {
   **/
   setRoutes: function (routes) {
     this._routes = routes;
+  },
+
+  /**
+  @method _setInternalLocation
+  @param {String|Object} location string or object representation of URL
+  **/
+  _setInternalLocation: function(location) {
+  	var locPart;
+  	if (typeof location === 'string') {
+  	  location = parseURI(location);
+  	}
+  	for (locPart in this._location) {
+  		if (this._location.hasOwnProperty(locPart)) {
+  			this._location[locPart] = location[locPart] || '';
+  		}
+  	}
   },
 
   /**
@@ -84,11 +120,15 @@ Navigator.prototype = {
   @return {String}
   **/
   getCurrentPathname: function () {
-    if (this.pushStateEnabled) {
-      return this._removeURIRoot(location.pathname);
-    }
-    else {
-      return location.hash.replace('#', '').split('?')[0];
+  	if (!this._inBrowser) {
+  	  return this._removeURIRoot(this._location.pathname);
+  	} else {
+      if (this.pushStateEnabled) {
+        return this._removeURIRoot(location.pathname);
+      }
+      else {
+        return location.hash.replace('#', '').split('?')[0];
+      }
     }
   },
 
@@ -97,11 +137,15 @@ Navigator.prototype = {
   @return {String}
   **/
   getCurrentURI: function () {
-    if (this.pushStateEnabled) {
-      return this._removeURIRoot(location.pathname) + location.search;
-    }
-    else {
-      return location.hash.replace('#', '');
+  	if (!this._inBrowser) {
+  	  return this._removeURIRoot(this._location.pathname) + location.search;
+  	} else {
+      if (this.pushStateEnabled) {
+        return this._removeURIRoot(location.pathname) + location.search;
+      }
+      else {
+        return location.hash.replace('#', '');
+      }
     }
   },
 
@@ -112,17 +156,21 @@ Navigator.prototype = {
   getQueryString: function () {
     var uri, queryString;
 
-    if (this.pushStateEnabled) {
-      return location.search || null;
-    }
-    else {
-      queryString = this.getCurrentURI().split('?')[1];
-
-      if (queryString) {
-        return '?' + queryString;
+    if (!this._inBrowser) {
+      return this._location.search;
+    } else {
+      if (this.pushStateEnabled) {
+        return location.search || null;
       }
       else {
-        return null;
+        queryString = this.getCurrentURI().split('?')[1];
+
+        if (queryString) {
+          return '?' + queryString;
+        }
+        else {
+          return null;
+        }
       }
     }
   },
@@ -229,24 +277,31 @@ Navigator.prototype = {
       this._silent = true;
     }
 
-    if (this.pushStateEnabled) {
-      link = this._removeURIRoot(link);
+    if (!this._inBrowser) {
+      this._setInternalLocation(link);
+      this.onURIChange();
+    } else {
+      if (this.pushStateEnabled) {
+        link = this._removeURIRoot(link);
 
-      link = this.root + link;
+        link = this.root + link;
 
-      if (options.replace) {
-        history.replaceState('navigate', '', link);
+        if (options.replace) {
+          history.replaceState('navigate', '', link);
+        }
+        else {
+          history.pushState('navigate', '', link);
+        }
+
+        this.onURIChange();
       }
       else {
-        history.pushState('navigate', '', link);
+        if (options.replace) location.replace('#' + link);
+        else location.hash = link;
       }
+    }
 
-      this.onURIChange();
-    }
-    else {
-      if (options.replace) location.replace('#' + link);
-      else location.hash = link;
-    }
+    
   },
 
   /**
