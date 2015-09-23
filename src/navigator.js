@@ -19,6 +19,7 @@ var Navigator = function () {
   this._silent  = false;
   this._dispatchingStarted = false;
   this._inBrowser = true;
+  this._modifyUrl = true;
   this._location = {
   	href: '',
   	protocol: '',
@@ -118,9 +119,12 @@ Navigator.prototype = {
   /**
   @method getCurrentPathname
   @return {String}
+
+  @todo Have the internal location store be the source of truth for all cases, 
+  	whether or not we're modifying a browser URL
   **/
   getCurrentPathname: function () {
-  	if (!this._inBrowser) {
+  	if (!this._inBrowser || !this._modifyUrl) {
   	  return this._removeURIRoot(this._location.pathname);
   	} else {
       if (this.pushStateEnabled) {
@@ -277,10 +281,11 @@ Navigator.prototype = {
       this._silent = true;
     }
 
-    if (!this._inBrowser) {
+    if (!this._inBrowser || !this._modifyUrl) {
       this._setInternalLocation(link);
       this.onURIChange();
     } else {
+
       if (this.pushStateEnabled) {
         link = this._removeURIRoot(link);
 

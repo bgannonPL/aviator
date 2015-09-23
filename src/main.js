@@ -64,9 +64,12 @@ var Aviator = {
       root:             this.root
     };
 
-    // for now, just expose config for browser/server
+    // for now, just expose config limited config that we need
     if (typeof config.inBrowser !== 'undefined' && !config.inBrowser) {
     	navigatorConfig._inBrowser = false;
+    }
+    if (typeof config.modifyUrl !== 'undefined' && !config.modifyUrl) {
+    	navigatorConfig._modifyUrl = false;
     }
 
     navigator.setup(navigatorConfig);
