@@ -71,6 +71,9 @@ var Aviator = {
     if (typeof config.modifyUrl !== 'undefined' && !config.modifyUrl) {
     	navigatorConfig._modifyUrl = false;
     }
+    if (typeof config.silent !== 'undefined' && config.silent) {
+      navigatorConfig._silent = true;
+    }
 
     navigator.setup(navigatorConfig);
 
